@@ -10,7 +10,7 @@ import {
 import { subjects } from "@/constants";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { formUrlQuery, removeKeysFromUrlQuery } from "@jsmastery/utils";
+import { formUrlQuery, removeKeysFromUrlQuery } from "@/lib/utils";
 
 const SubjectFilter = () => {
     const router = useRouter();
@@ -21,20 +21,25 @@ const SubjectFilter = () => {
 
     useEffect(() => {
         let newUrl = "";
+
+        const paramsObj = Object.fromEntries(searchParams.entries());
+
         if (subject === "all") {
             newUrl = removeKeysFromUrlQuery({
-                params: searchParams.toString(),
-                keysToRemove: ["subject"],
+            params: paramsObj,
+            keysToRemove: ["subject"],
             });
         } else {
             newUrl = formUrlQuery({
-                params: searchParams.toString(),
-                key: "subject",
-                value: subject,
+            params: paramsObj,
+            key: "subject",
+            value: subject,
             });
         }
+
         router.push(newUrl, { scroll: false });
     }, [subject]);
+
 
     return (
         <Select onValueChange={setSubject} value={subject}>

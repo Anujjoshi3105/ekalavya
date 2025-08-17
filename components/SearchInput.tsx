@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import { formUrlQuery, removeKeysFromUrlQuery } from '@/lib/utils';
 import { SearchIcon } from 'lucide-react';
 
