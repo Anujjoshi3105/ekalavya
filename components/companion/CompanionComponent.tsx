@@ -3,7 +3,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {cn, getSubjectColor} from "@/lib/utils";
 import {geminiVoice} from "@/lib/gemini.sdk";
-import Image from "next/image";
 import Lottie, {LottieRefCurrentProps} from "lottie-react";
 import soundwaves from '@/constants/soundwaves.json'
 import {addToSessionHistory} from "@/lib/actions/companion.actions";
