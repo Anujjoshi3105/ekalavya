@@ -4,7 +4,6 @@ import SearchInput from "@/components/SearchInput";
 import SubjectFilter from "@/components/SubjectFilter";
 import CompanionCard from "@/components/companion/CompanionCard";
 import { PlusCircleIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 const CompanionsLibrary = async ({ searchParams }: SearchParams) => {
