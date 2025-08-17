@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
-import { Navbar } from "@/components/navbar";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const bricolage = Bricolage_Grotesque({
@@ -183,10 +181,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-        <ClerkProvider appearance={{ variables: { colorPrimary: '#fe5933' }} }>
-          <Navbar />
           {children}
-        </ClerkProvider>
         </ThemeProvider>
       </body>
     </html>
