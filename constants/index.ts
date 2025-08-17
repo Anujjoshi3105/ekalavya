@@ -1,0 +1,46 @@
+export const subjects = [
+  "accountancy",
+  "biology",
+  "business studies",
+  "chemistry",
+  "computer science",
+  "economics",
+  "english",
+  "geography",
+  "hindi",
+  "history",
+  "informatics practices",
+  "mathematics",
+  "physical education",
+  "physics",
+  "political science",
+  "psychology",
+  "sociology",
+];
+
+export const subjectsColors = {
+  "mathematics": "#E6C651",
+  "english": "#99D3F2",
+  "hindi": "#C9A8E6",
+  "physics": "#9DECBF",
+  "chemistry": "#F29DBF",
+  "biology": "#E6D2A8",
+  "computer science": "#F2B074",
+  "informatics practices": "#EC91D2",
+  "economics": "#75D1CE",
+  "accountancy": "#8BEBA8",
+  "business studies": "#EFD09C",
+  "political science": "#B8B3E0",
+  "geography": "#E5A96D",
+  "history": "#E6B0A9",
+  "psychology": "#9DE0B4",
+  "sociology": "#C69CCF",
+  "physical education": "#9CE8B5",
+};
+
+export const navItems = [
+    { label:'Home', href: '/' },
+    { label: 'Companion', href: '/companion' },
+    { label: 'Quiz', href: '/quiz'},
+    { label: 'Dashboard', href: '/dashboard' },
+]
