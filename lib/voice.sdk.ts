@@ -9,11 +9,16 @@ class VoiceSdk {
   private isSpeaking: boolean = false;
   private isMicMuted: boolean = false;
   private isSpeakerMuted: boolean = false;
-  private config: VoiceConfig | null = null;
+  private config: CompanionConfig | null = null;
   private conversationHistory: CompanionMessage[] = [];
   private eventHandlers: { [key: string]: Function[] } = {};
   private isInitialized: boolean = false;
-  private selectedVoice: string | null = null;
+  private voiceConfig: VoiceConfig = {
+    voice: "",
+    rate: 1.0,
+    pitch: 1.0,
+    volume: 1.0,
+  };
 
   constructor() {}
 
@@ -127,6 +132,15 @@ class VoiceSdk {
     await this.handleUserMessage(message.trim());
   }
 
+  public updateVoiceSettings(settings: VoiceConfig) {
+    this.voiceConfig = { ...settings };
+    this.emit('voice-settings-updated', this.voiceConfig);
+  }
+
+  public getVoiceSettings(): VoiceConfig {
+    return { ...this.voiceConfig };
+  }
+
   private async speakText(text: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isSpeakerMuted || !this.synthesis) {
@@ -139,16 +153,25 @@ class VoiceSdk {
       const utterance = new SpeechSynthesisUtterance(text);
 
       const voices = this.synthesis.getVoices();
-      const preferredVoice =
-        voices.find((voice) => voice.name === this.selectedVoice) || voices[0];
+      let preferredVoice: SpeechSynthesisVoice | null = null;
+
+      // Priority order: user selected voice > config voice > first available
+      if (this.voiceConfig.voice) {
+        preferredVoice = voices.find((voice) => voice.name === this.voiceConfig.voice) || null;
+      }
+            
+      if (!preferredVoice && voices.length > 0) {
+        preferredVoice = voices[0];
+      }
 
       if (preferredVoice) {
         utterance.voice = preferredVoice;
       }
 
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
+      // Apply voice settings
+      utterance.rate = this.voiceConfig.rate;
+      utterance.pitch = this.voiceConfig.pitch;
+      utterance.volume = this.voiceConfig.volume;
 
       utterance.onstart = () => {
         this.isSpeaking = true;
@@ -171,15 +194,12 @@ class VoiceSdk {
     });
   }
 
-  public async start(config: VoiceConfig) {
+  public async start(config: CompanionConfig) {
     this.initializeBrowserApis();
 
     this.config = config;
     this.conversationHistory = [];
     this.isListening = true;
-
-    // 🔑 store user’s selected voice
-    this.selectedVoice = config.voice || null;
 
     this.emit('call-start');
 

@@ -6,7 +6,7 @@ const genAI = new GoogleGenAI({
 
 export async function getGeminiResponse(
   userInput: string,
-  config: VoiceConfig,
+  config: CompanionConfig,
   conversationHistory: CompanionMessage[]
 ): Promise<string> {
   if (!config) throw new Error('No configuration set');

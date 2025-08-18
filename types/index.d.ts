@@ -31,7 +31,6 @@ interface CreateCompanion {
   name: string;
   subject: string;
   topic: string;
-  voice: string;
   style: string;
   duration: number;
 }
@@ -43,27 +42,8 @@ interface GetAllCompanions {
   topic?: string | string[];
 }
 
-interface BuildClient {
-  key?: string;
-  sessionToken?: string;
-}
-
-interface CreateUser {
-  email: string;
-  name: string;
-  image?: string;
-  accountId: string;
-}
-
 interface SearchParams {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}
-
-interface Avatar {
-  userName: string;
-  width: number;
-  height: number;
-  className?: string;
 }
 
 interface CompanionComponentProps {
@@ -73,15 +53,13 @@ interface CompanionComponentProps {
   name: string;
   userName: string;
   userImage: string;
-  voice: string;
   style: string;
 }
 
-interface VoiceConfig {
+interface CompanionConfig {
   subject: string;
   topic: string;
   style: string;
-  voice?: string;
   name: string;
 }
 
@@ -89,4 +67,11 @@ interface CompanionMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: number;
+}
+
+interface VoiceConfig {
+  voice: string;
+  rate: number;
+  pitch: number;
+  volume: number;
 }

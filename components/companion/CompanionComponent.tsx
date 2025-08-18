@@ -7,6 +7,7 @@ import Lottie, {LottieRefCurrentProps } from "lottie-react";
 import soundwaves from '@/constants/soundwaves.json'
 import { addToSessionHistory } from "@/lib/actions/companion.actions";
 import CompanionConversation from './CompanionConversation';
+import { VoiceSetting } from './VoiceSetting';
 import { MicIcon, MicOffIcon } from 'lucide-react';
 
 enum CallStatus {
@@ -23,7 +24,6 @@ interface CompanionComponentProps {
     name: string;
     userName: string;
     style: string;
-    voice: string;
 }
 
 interface Message {
@@ -48,7 +48,12 @@ const CompanionComponent = ({
     const [messages, setMessages] = useState<CompanionMessage[]>([]);
     const [isInitialized, setIsInitialized] = useState(false);
     const [textInput, setTextInput] = useState('');
-    const [selectedVoice, setSelectedVoice] = useState('');
+    const [voiceSettings, setVoiceSettings] = useState<VoiceConfig>({
+        voice: "",
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0,
+    });
 
     const lottieRef = useRef<LottieRefCurrentProps>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -103,12 +108,18 @@ const CompanionComponent = ({
             }
         };
 
+        // NEW: Listen for voice settings updates
+        const onVoiceSettingsUpdated = (settings: VoiceConfig) => {
+            setVoiceSettings(settings);
+        };
+
         companionVoice.on('call-start', onCallStart);
         companionVoice.on('call-end', onCallEnd);
         companionVoice.on('message', onMessage);
         companionVoice.on('error', onError);
         companionVoice.on('speech-start', onSpeechStart);
         companionVoice.on('speech-end', onSpeechEnd);
+        companionVoice.on('voice-settings-updated', onVoiceSettingsUpdated);
 
         setIsInitialized(true);
 
@@ -119,6 +130,7 @@ const CompanionComponent = ({
             companionVoice.off('error', onError);
             companionVoice.off('speech-start', onSpeechStart);
             companionVoice.off('speech-end', onSpeechEnd);
+            companionVoice.off('voice-settings-updated', onVoiceSettingsUpdated);
         }
     }, [companionId, companionVoice]);
 
@@ -149,6 +161,11 @@ const CompanionComponent = ({
         }
     }
 
+    // NEW: Handle voice settings change
+    const handleVoiceSettingsChange = (settings: VoiceConfig) => {
+        setVoiceSettings(settings);
+    };
+
     const handleCall = async () => {
         if (!isInitialized) return;
         
@@ -160,7 +177,6 @@ const CompanionComponent = ({
                 subject,
                 topic,
                 style,
-                voice: selectedVoice,
                 name
             });
         } catch (error) {
@@ -187,6 +203,14 @@ const CompanionComponent = ({
                     </div>
                 )}
                 
+                {/* Voice Settings - placed at the top */}
+                <div className="flex justify-end mb-4">
+                    <VoiceSetting
+                        onSettingsChange={handleVoiceSettingsChange}
+                        initialSettings={voiceSettings}
+                    />
+                </div>
+                
                 <section className="flex p-2 gap-8 max-sm:flex-col">
                     <div className="companion-section">
                         <div className="companion-avatar" style={{ backgroundColor: getSubjectColor(subject)}}>
@@ -197,6 +221,15 @@ const CompanionComponent = ({
                                 className="companion-lottie"
                             />
                         </div>
+
+                        {/* Current voice settings display */}
+                        {callStatus !== CallStatus.INACTIVE && (
+                            <div className="text-xs text-muted-foreground text-center mt-2">
+                                Voice: {voiceSettings.voice ? voiceSettings.voice.split(' ')[0] : 'Default'} | 
+                                Rate: {voiceSettings.rate.toFixed(1)} | 
+                                Pitch: {voiceSettings.pitch.toFixed(1)}
+                            </div>
+                        )}
 
                         {/* Microphone Control (only show in voice mode) */}
                         {callStatus === CallStatus.ACTIVE && (
