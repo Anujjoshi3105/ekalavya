@@ -3,14 +3,8 @@
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
 
-interface SavedMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-}
-
 interface CompanionConversationProps {
-  messages: SavedMessage[];
+  messages: CompanionMessage[];
   callStatus: 'INACTIVE' | 'CONNECTING' | 'ACTIVE' | 'FINISHED';
   name: string;
   userName: string;
@@ -18,6 +12,7 @@ interface CompanionConversationProps {
   setTextInput: (val: string) => void;
   handleTextSubmit: (e: React.FormEvent) => void;
   handleKeyPress: (e: React.KeyboardEvent) => void;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const CompanionConversation = ({
@@ -29,8 +24,8 @@ const CompanionConversation = ({
   setTextInput,
   handleTextSubmit,
   handleKeyPress,
+  messagesEndRef
 }: CompanionConversationProps) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const formatTimestamp = (timestamp: number) =>
     new Date(timestamp).toLocaleTimeString([], {
@@ -67,7 +62,9 @@ const CompanionConversation = ({
                   <span className="font-semibold text-sm">
                     {message.role === 'assistant' ? name.split(' ')[0].replace(/[.,]/g, '') : userName}
                   </span>
+                {message.timestamp &&
                   <span className="text-xs text-gray-500">{formatTimestamp(message.timestamp)}</span>
+                }
                 </div>
                 <p className="text-sm text-gray-800 leading-relaxed">{message.content}</p>
               </div>

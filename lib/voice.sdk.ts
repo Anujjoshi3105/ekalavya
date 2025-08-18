@@ -1,51 +1,42 @@
 'use client';
 
-import { GoogleGenAI } from '@google/genai';
+import { getGeminiResponse } from "./gemini";
 
-const genAI = new GoogleGenAI({apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY!});
-
-export interface GeminiVoiceConfig {
-  subject: string;
-  topic: string;
-  style: string;
-  voice?: string;
-  name: string;
-}
-
-export interface GeminiMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-}
-
-class GeminiVoiceSDK {
+class VoiceSdk {
   private recognition: SpeechRecognition | null = null;
-  private synthesis: SpeechSynthesis;
+  private synthesis: SpeechSynthesis | null = null;
   private isListening: boolean = false;
   private isSpeaking: boolean = false;
   private isMicMuted: boolean = false;
   private isSpeakerMuted: boolean = false;
-  private config: GeminiVoiceConfig | null = null;
-  private conversationHistory: GeminiMessage[] = [];
+  private config: VoiceConfig | null = null;
+  private conversationHistory: CompanionMessage[] = [];
   private eventHandlers: { [key: string]: Function[] } = {};
+  private isInitialized: boolean = false;
+  private selectedVoice: string | null = null;
 
-  constructor() {
+  constructor() {}
+
+  private initializeBrowserApis() {
+    if (this.isInitialized || typeof window === 'undefined') return;
+
     this.synthesis = window.speechSynthesis;
     this.initializeSpeechRecognition();
+    this.isInitialized = true;
   }
 
   private initializeSpeechRecognition() {
+    if (typeof window === 'undefined') return;
+
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       this.recognition = new SpeechRecognition();
-      
+
       this.recognition!.continuous = true;
       this.recognition!.interimResults = true;
       this.recognition!.lang = 'en-US';
 
-      this.recognition!.onstart = () => {
-        this.emit('speech-start');
-      };
+      this.recognition!.onstart = () => this.emit('speech-start');
 
       this.recognition!.onend = () => {
         this.emit('speech-end');
@@ -84,45 +75,43 @@ class GeminiVoiceSDK {
   private async handleUserMessage(transcript: string) {
     if (!this.config) return;
 
-    // Add user message to history
-    const userMessage: GeminiMessage = {
+    const userMessage: CompanionMessage = {
       role: 'user',
       content: transcript,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     this.conversationHistory.push(userMessage);
 
-    // Emit the user message immediately
     this.emit('message', {
       type: 'transcript',
       transcriptType: 'final',
       role: 'user',
-      transcript: transcript,
-      timestamp: userMessage.timestamp
+      transcript,
+      timestamp: userMessage.timestamp,
     });
 
     try {
-      // Get response from Gemini
-      const response = await this.getGeminiResponse(transcript);
-      
-      // Add assistant message to history
-      const assistantMessage: GeminiMessage = {
+      const response = await getGeminiResponse(
+        transcript,
+        this.config,
+        this.conversationHistory
+      );
+
+      const assistantMessage: CompanionMessage = {
         role: 'assistant',
         content: response,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
       this.conversationHistory.push(assistantMessage);
 
-      // Emit assistant message event
       this.emit('message', {
         type: 'transcript',
         transcriptType: 'final',
         role: 'assistant',
         transcript: response,
-        timestamp: assistantMessage.timestamp
+        timestamp: assistantMessage.timestamp,
       });
 
-      // Always speak the response (unless speaker is muted)
       await this.speakText(response);
     } catch (error) {
       console.error('Error getting Gemini response:', error);
@@ -130,7 +119,6 @@ class GeminiVoiceSDK {
     }
   }
 
-  // New public method to send text messages
   public async sendTextMessage(message: string): Promise<void> {
     if (!this.config || !message.trim()) {
       throw new Error('Invalid message or configuration');
@@ -139,44 +127,9 @@ class GeminiVoiceSDK {
     await this.handleUserMessage(message.trim());
   }
 
-  private async getGeminiResponse(userInput: string): Promise<string> {
-    if (!this.config) throw new Error('No configuration set');
-
-    const systemPrompt = `You are a highly knowledgeable tutor teaching a real-time voice session with a student. Your goal is to teach the student about the topic and subject.
-
-Tutor Guidelines:
-- Stick to the given topic: "${this.config.topic}" and subject: "${this.config.subject}" and teach the student about it.
-- Keep the conversation flowing smoothly while maintaining control.
-- From time to time make sure that the student is following you and understands you.
-- Break down the topic into smaller parts and teach the student one part at a time.
-- Keep your style of conversation "${this.config.style}".
-- Keep your responses short, like in a real voice conversation.
-- Do not include any special characters in your responses - this is a voice conversation.
-- Maximum response length should be 2-3 sentences for natural conversation flow.
-- The student may communicate via voice or text - respond naturally to both.`;
-
-    // Build conversation history for context
-    const conversationContext = this.conversationHistory
-      .slice(-10)
-      .map(msg => `${msg.role === 'user' ? 'Student' : 'Tutor'}: ${msg.content}`)
-      .join('\n');
-
-    const prompt = `${systemPrompt}
-
-Previous conversation:
-${conversationContext}
-
-Current student message: ${userInput}
-
-Respond as the tutor:`;
-
-    const response = await genAI.models.generateContent({ model: 'gemini-1.5-flash', contents: prompt });
-    return response.text!.trim();
-  }
-
   private async speakText(text: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.isSpeakerMuted) {
+      if (this.isSpeakerMuted || !this.synthesis) {
         resolve();
         return;
       }
@@ -184,13 +137,11 @@ Respond as the tutor:`;
       this.synthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      
+
       const voices = this.synthesis.getVoices();
-      const preferredVoice = voices.find(voice => 
-        voice.name.toLowerCase().includes('female') || 
-        voice.name.toLowerCase().includes('sarah')
-      ) || voices[0];
-      
+      const preferredVoice =
+        voices.find((voice) => voice.name === this.selectedVoice) || voices[0];
+
       if (preferredVoice) {
         utterance.voice = preferredVoice;
       }
@@ -220,29 +171,34 @@ Respond as the tutor:`;
     });
   }
 
-  public async start(config: GeminiVoiceConfig) {
+  public async start(config: VoiceConfig) {
+    this.initializeBrowserApis();
+
     this.config = config;
     this.conversationHistory = [];
     this.isListening = true;
-    
+
+    // 🔑 store user’s selected voice
+    this.selectedVoice = config.voice || null;
+
     this.emit('call-start');
 
     const firstMessage = `Hello, let's start the session. Today we'll be talking about ${config.topic}.`;
     const timestamp = Date.now();
-    
-    const assistantMessage: GeminiMessage = {
+
+    const assistantMessage: CompanionMessage = {
       role: 'assistant',
       content: firstMessage,
-      timestamp
+      timestamp,
     };
     this.conversationHistory.push(assistantMessage);
-    
+
     this.emit('message', {
       type: 'transcript',
       transcriptType: 'final',
       role: 'assistant',
       transcript: firstMessage,
-      timestamp
+      timestamp,
     });
 
     await this.speakText(firstMessage);
@@ -254,20 +210,22 @@ Respond as the tutor:`;
 
   public stop() {
     this.isListening = false;
-    
+
     if (this.recognition) {
       this.recognition.stop();
     }
-    
-    this.synthesis.cancel();
+
+    if (this.synthesis) {
+      this.synthesis.cancel();
+    }
     this.isSpeaking = false;
-    
+
     this.emit('call-end');
   }
 
   public setMuted(muted: boolean) {
     this.isMicMuted = muted;
-    
+
     if (muted && this.recognition) {
       this.recognition.stop();
     } else if (!muted && this.recognition && this.isListening) {
@@ -281,8 +239,8 @@ Respond as the tutor:`;
 
   public setSpeakerMuted(muted: boolean) {
     this.isSpeakerMuted = muted;
-    
-    if (muted && this.isSpeaking) {
+
+    if (muted && this.isSpeaking && this.synthesis) {
       this.synthesis.cancel();
       this.isSpeaking = false;
       this.emit('speech-end');
@@ -293,7 +251,7 @@ Respond as the tutor:`;
     return this.isSpeakerMuted;
   }
 
-  public getConversationHistory(): GeminiMessage[] {
+  public getConversationHistory(): CompanionMessage[] {
     return [...this.conversationHistory];
   }
 
@@ -310,15 +268,24 @@ Respond as the tutor:`;
 
   public off(event: string, handler: Function) {
     if (this.eventHandlers[event]) {
-      this.eventHandlers[event] = this.eventHandlers[event].filter(h => h !== handler);
+      this.eventHandlers[event] = this.eventHandlers[event].filter((h) => h !== handler);
     }
   }
 
   private emit(event: string, data?: any) {
     if (this.eventHandlers[event]) {
-      this.eventHandlers[event].forEach(handler => handler(data));
+      this.eventHandlers[event].forEach((handler) => handler(data));
     }
   }
 }
 
-export const geminiVoice = new GeminiVoiceSDK();
+let companionVoiceInstance: VoiceSdk | null = null;
+
+export const getCompanionVoice = (): VoiceSdk => {
+  if (!companionVoiceInstance) {
+    companionVoiceInstance = new VoiceSdk();
+  }
+  return companionVoiceInstance;
+};
+
+export const companionVoice = getCompanionVoice();

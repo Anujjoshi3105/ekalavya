@@ -1,11 +1,11 @@
 'use client';
 
-import {useEffect, useRef, useState} from 'react'
-import {cn, getSubjectColor} from "@/lib/utils";
-import {geminiVoice} from "@/lib/gemini.sdk";
-import Lottie, {LottieRefCurrentProps} from "lottie-react";
+import { useEffect, useRef, useState } from 'react'
+import { cn, getSubjectColor } from "@/lib/utils";
+import { getCompanionVoice } from "@/lib/voice.sdk";
+import Lottie, {LottieRefCurrentProps } from "lottie-react";
 import soundwaves from '@/constants/soundwaves.json'
-import {addToSessionHistory} from "@/lib/actions/companion.actions";
+import { addToSessionHistory } from "@/lib/actions/companion.actions";
 import CompanionConversation from './CompanionConversation';
 import { MicIcon, MicOffIcon } from 'lucide-react';
 
@@ -22,15 +22,8 @@ interface CompanionComponentProps {
     topic: string;
     name: string;
     userName: string;
-    userImage: string;
     style: string;
     voice: string;
-}
-
-interface SavedMessage {
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: number;
 }
 
 interface Message {
@@ -46,22 +39,20 @@ const CompanionComponent = ({
     topic, 
     name, 
     userName, 
-    userImage, 
     style, 
-    voice 
 }: CompanionComponentProps) => {
     const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isSpeechSupported, setIsSpeechSupported] = useState(true);
     const [isMuted, setIsMuted] = useState(false);
-    const [messages, setMessages] = useState<SavedMessage[]>([]);
+    const [messages, setMessages] = useState<CompanionMessage[]>([]);
     const [isInitialized, setIsInitialized] = useState(false);
     const [textInput, setTextInput] = useState('');
-    const [isTextMode, setIsTextMode] = useState(false);
+    const [selectedVoice, setSelectedVoice] = useState('');
 
     const lottieRef = useRef<LottieRefCurrentProps>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const textInputRef = useRef<HTMLInputElement>(null);
+    const companionVoice = getCompanionVoice();
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
@@ -92,7 +83,7 @@ const CompanionComponent = ({
 
         const onMessage = (message: Message) => {
             if(message.type === 'transcript' && message.transcriptType === 'final') {
-                const newMessage: SavedMessage = { 
+                const newMessage: CompanionMessage = { 
                     role: message.role, 
                     content: message.transcript,
                     timestamp: Date.now()
@@ -112,48 +103,29 @@ const CompanionComponent = ({
             }
         };
 
-        geminiVoice.on('call-start', onCallStart);
-        geminiVoice.on('call-end', onCallEnd);
-        geminiVoice.on('message', onMessage);
-        geminiVoice.on('error', onError);
-        geminiVoice.on('speech-start', onSpeechStart);
-        geminiVoice.on('speech-end', onSpeechEnd);
+        companionVoice.on('call-start', onCallStart);
+        companionVoice.on('call-end', onCallEnd);
+        companionVoice.on('message', onMessage);
+        companionVoice.on('error', onError);
+        companionVoice.on('speech-start', onSpeechStart);
+        companionVoice.on('speech-end', onSpeechEnd);
 
         setIsInitialized(true);
 
         return () => {
-            geminiVoice.off('call-start', onCallStart);
-            geminiVoice.off('call-end', onCallEnd);
-            geminiVoice.off('message', onMessage);
-            geminiVoice.off('error', onError);
-            geminiVoice.off('speech-start', onSpeechStart);
-            geminiVoice.off('speech-end', onSpeechEnd);
+            companionVoice.off('call-start', onCallStart);
+            companionVoice.off('call-end', onCallEnd);
+            companionVoice.off('message', onMessage);
+            companionVoice.off('error', onError);
+            companionVoice.off('speech-start', onSpeechStart);
+            companionVoice.off('speech-end', onSpeechEnd);
         }
-    }, [companionId]);
+    }, [companionId, companionVoice]);
 
     const toggleMicrophone = () => {
-        const currentMutedState = geminiVoice.isMutedState();
-        geminiVoice.setMuted(!currentMutedState);
+        const currentMutedState = companionVoice.isMutedState();
+        companionVoice.setMuted(!currentMutedState);
         setIsMuted(!currentMutedState);
-    }
-
-    const toggleInputMode = () => {
-        setIsTextMode(!isTextMode);
-        // If switching to text mode, mute microphone
-        if (!isTextMode && callStatus === CallStatus.ACTIVE) {
-            geminiVoice.setMuted(true);
-            setIsMuted(true);
-        }
-        // If switching back to voice mode, unmute microphone
-        else if (isTextMode && callStatus === CallStatus.ACTIVE) {
-            geminiVoice.setMuted(false);
-            setIsMuted(false);
-        }
-        
-        // Focus text input when switching to text mode
-        if (!isTextMode) {
-            setTimeout(() => textInputRef.current?.focus(), 100);
-        }
     }
 
     const handleTextSubmit = async (e: React.FormEvent) => {
@@ -164,8 +136,7 @@ const CompanionComponent = ({
         setTextInput('');
 
         try {
-            // Send text message through the SDK
-            await geminiVoice.sendTextMessage(userMessage);
+            await companionVoice.sendTextMessage(userMessage);
         } catch (error) {
             console.error('Failed to send text message:', error);
         }
@@ -185,11 +156,11 @@ const CompanionComponent = ({
         setMessages([]);
 
         try {
-            await geminiVoice.start({
+            await companionVoice.start({
                 subject,
                 topic,
                 style,
-                voice,
+                voice: selectedVoice,
                 name
             });
         } catch (error) {
@@ -201,17 +172,8 @@ const CompanionComponent = ({
 
     const handleDisconnect = () => {
         setCallStatus(CallStatus.FINISHED);
-        setIsTextMode(false);
         setTextInput('');
-        geminiVoice.stop();
-    }
-
-    const formatTimestamp = (timestamp: number) => {
-        return new Date(timestamp).toLocaleTimeString([], { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            second: '2-digit'
-        });
+        companionVoice.stop();
     }
 
     return (
@@ -278,6 +240,7 @@ const CompanionComponent = ({
                 setTextInput={setTextInput}
                 handleTextSubmit={handleTextSubmit}
                 handleKeyPress={handleKeyPress}
+                messagesEndRef={messagesEndRef}
             />
         </div>
     )
